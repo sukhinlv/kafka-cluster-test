@@ -1,0 +1,271 @@
+---
+networks:
+  kafka-net:
+    name: kafka-net-network
+
+volumes:
+  prometheus_data: {}
+  grafana_data: {}
+
+services:
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus${PROMETHEUS_VERSION_TAG}
+    ports:
+      - '${PROMETHEUS_PORT}:9090'
+    volumes:
+      - ./prometheus:/etc/prometheus
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    expose:
+      - 9090
+    networks:
+      - kafka-net
+    labels:
+      org.label-schema.group: 'monitoring'
+
+  grafana:
+    container_name: grafana
+    image: grafana/grafana${GRAFANA_VERSION_TAG}
+    ports:
+      - '${GRAFANA_PORT}:3000'
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    environment:
+      - GF_SECURITY_ADMIN_USER=${ADMIN_USER}
+      - GF_SECURITY_ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    restart: unless-stopped
+    expose:
+      - 3000
+    networks:
+      - kafka-net
+    labels:
+      org.label-schema.group: 'monitoring'
+
+  kafka-ui:
+    container_name: kafka-ui
+    image: provectuslabs/kafka-ui${KAFKA_UI_VERSION_TAG}
+    ports:
+      - '${KAFKA_UI_PORT}:8080'
+    depends_on:
+      - broker0
+      - broker1
+      - broker2
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: broker0:29092,broker1:29092,broker2:29092
+      KAFKA_CLUSTERS_0_METRICS_PORT: 9101
+#      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry0:8085
+#      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: first
+#      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://kafka-connect0:8083
+    networks:
+      - kafka-net
+    labels:
+      org.label-schema.group: 'monitoring'
+
+  broker0:
+    image: confluentinc/cp-kafka${CP_KAFKA_VERSION_TAG}
+    hostname: broker0
+    container_name: broker0
+    ports:
+      - '${BROKER0_PORT}:9092'
+    environment:
+      # Replace CLUSTER_ID with a unique base64 UUID using "bin/kafka-storage.sh random-uuid"
+      # See https://docs.confluent.io/kafka/operations-tools/kafka-tools.html#kafka-storage-sh
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+      KAFKA_NODE_ID: 1
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'INTERNAL'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT'
+      KAFKA_LISTENERS: 'INTERNAL://broker0:29092,CONTROLLER://broker0:29093,EXTERNAL://0.0.0.0:9092'
+      KAFKA_ADVERTISED_LISTENERS: 'INTERNAL://broker0:29092,EXTERNAL://localhost:9092'
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@broker0:29093,2@broker1:29093,3@broker2:29093'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: broker0
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+    networks:
+      - kafka-net
+    labels:
+      org.label-schema.group: 'monitoring'
+
+  broker1:
+    image: confluentinc/cp-kafka${CP_KAFKA_VERSION_TAG}
+    hostname: broker1
+    container_name: broker1
+    environment:
+      # Replace CLUSTER_ID with a unique base64 UUID using "bin/kafka-storage.sh random-uuid"
+      # See https://docs.confluent.io/kafka/operations-tools/kafka-tools.html#kafka-storage-sh
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+      KAFKA_NODE_ID: 2
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'INTERNAL'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT'
+      KAFKA_LISTENERS: 'INTERNAL://broker1:29092,CONTROLLER://broker1:29093,EXTERNAL://0.0.0.0:9092'
+      KAFKA_ADVERTISED_LISTENERS: 'INTERNAL://broker1:29092,EXTERNAL://localhost:9092'
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@broker0:29093,2@broker1:29093,3@broker2:29093'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: broker1
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+    networks:
+      - kafka-net
+    labels:
+      org.label-schema.group: 'monitoring'
+
+  broker2:
+    image: confluentinc/cp-kafka${CP_KAFKA_VERSION_TAG}
+    hostname: broker2
+    container_name: broker2
+    environment:
+      # Replace CLUSTER_ID with a unique base64 UUID using "bin/kafka-storage.sh random-uuid"
+      # See https://docs.confluent.io/kafka/operations-tools/kafka-tools.html#kafka-storage-sh
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+      KAFKA_NODE_ID: 3
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'INTERNAL'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT'
+      KAFKA_LISTENERS: 'INTERNAL://broker2:29092,CONTROLLER://broker2:29093,EXTERNAL://0.0.0.0:9092'
+      KAFKA_ADVERTISED_LISTENERS: 'INTERNAL://broker2:29092,EXTERNAL://localhost:9092'
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@broker0:29093,2@broker1:29093,3@broker2:29093'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_JMX_PORT: 9101
+      KAFKA_JMX_HOSTNAME: broker2
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+    networks:
+      - kafka-net
+    labels:
+      org.label-schema.group: 'monitoring'
+
+  kafka-init-topics:
+    image: confluentinc/cp-kafka${CP_KAFKA_VERSION_TAG}
+    volumes:
+      - ./messages.txt:/data/messages.txt
+    depends_on:
+      - broker0
+    command: "bash -c 'echo Waiting for Kafka to be ready... && \
+               cub kafka-ready -b broker0:29092 1 30 && \
+               kafka-topics --create --topic second.users --partitions 3 --replication-factor 1 --if-not-exists --bootstrap-server broker0:29092 && \
+               kafka-topics --create --topic second.messages --partitions 2 --replication-factor 1 --if-not-exists --bootstrap-server broker0:29092 && \
+               kafka-topics --create --topic first.messages --partitions 2 --replication-factor 1 --if-not-exists --bootstrap-server broker0:29092 && \
+               kafka-console-producer --bootstrap-server broker0:29092 --topic second.users < /data/messages.txt'"
+    networks:
+      - kafka-net
+    labels:
+      org.label-schema.group: 'monitoring'
+
+  danielqsj-kafka-exporter:
+    image: danielqsj/kafka-exporter${KAFKA_EXPORTER_VERSION_TAG}
+    container_name: danielqsj-kafka-exporter
+    restart: always
+    command:
+      - --kafka.server=broker0:29092
+      - --kafka.server=broker1:29092
+      - --kafka.server=broker2:29092
+      - --log.level=debug
+    ports:
+      - '${KAFKA_EXPORTER_PORT}:9308'
+    depends_on:
+      - broker0
+      - broker1
+      - broker2
+    networks:
+      - kafka-net
+    labels:
+      org.label-schema.group: 'monitoring'
+
+  seglo-kafka-lag-exporter:
+    image: seglo/kafka-lag-exporter${KAFKA_LAG_EXPORTER_VERSION_TAG}
+    container_name: seglo-kafka-lag-exporter
+    command: ["/opt/docker/bin/kafka-lag-exporter",
+              "-Dconfig.file=/opt/docker/conf/application.conf",
+              "-Dlogback.configurationFile=/opt/docker/conf/logback.xml"]
+    ports:
+      - '${KAFKA_LAG_EXPORTER_PORT}:8000'
+    volumes:
+      - './kafka-lag-exporter:/opt/docker/conf/'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "10"
+    depends_on:
+      - broker0
+      - broker1
+      - broker2
+    networks:
+      - kafka-net
+    labels:
+      org.label-schema.group: 'monitoring'
+
+#  schema-registry0:
+#    image: confluentinc/cp-schema-registry:7.6.1
+#    ports:
+#      - '${SCHEMA_REGISTRY_PORT}:8085'
+#    depends_on:
+#      - broker0
+#    environment:
+#      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: PLAINTEXT://broker0:29092
+#      SCHEMA_REGISTRY_KAFKASTORE_SECURITY_PROTOCOL: PLAINTEXT
+#      SCHEMA_REGISTRY_HOST_NAME: schema-registry0
+#      SCHEMA_REGISTRY_LISTENERS: http://schema-registry0:8085
+#      SCHEMA_REGISTRY_SCHEMA_REGISTRY_INTER_INSTANCE_PROTOCOL: "http"
+#      SCHEMA_REGISTRY_LOG4J_ROOT_LOGLEVEL: INFO
+#      SCHEMA_REGISTRY_KAFKASTORE_TOPIC: _schemas
+#    networks:
+#      - kafka-net
+#    labels:
+#      org.label-schema.group: 'monitoring'
+
+#  kafka-connect0:
+#    image: confluentinc/cp-kafka-connect:7.6.1
+#    ports:
+#      - '${KAFKA_CONNECT_PORT}:8083'
+#    depends_on:
+#      - broker0
+#      - schema-registry0
+#    environment:
+#      CONNECT_BOOTSTRAP_SERVERS: broker0:29092
+#      CONNECT_GROUP_ID: compose-connect-group
+#      CONNECT_CONFIG_STORAGE_TOPIC: _connect_configs
+#      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1
+#      CONNECT_OFFSET_STORAGE_TOPIC: _connect_offset
+#      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1
+#      CONNECT_STATUS_STORAGE_TOPIC: _connect_status
+#      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+#      CONNECT_KEY_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+#      CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry0:8085
+#      CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.storage.StringConverter
+#      CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry0:8085
+#      CONNECT_INTERNAL_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+#      CONNECT_INTERNAL_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+#      CONNECT_REST_ADVERTISED_HOST_NAME: kafka-connect0
+#      CONNECT_PLUGIN_PATH: "/usr/share/java,/usr/share/confluent-hub-components,/usr/share/filestream-connectors,/tmp/kfk"
+#    volumes:
+#      - /tmp/kfk:/tmp/kfk:ro
+#      - /tmp/kfk/test.txt:/tmp/kfk/test.txt
+#    networks:
+#      - kafka-net
+#    labels:
+#      org.label-schema.group: 'monitoring'
